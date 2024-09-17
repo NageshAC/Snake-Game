@@ -22,8 +22,9 @@ fps = 100
 speed = 10  # speed hz per movement
 grid_pixel = 10
 
-FPS = 30 # speed => frames per second
+FPS = 20 # speed => frames per second
 # SUB_FPS = 10
+MS_PER_FRAME = 1e-3 / FPS
 
 top_offset = 25
 bottom_offset = 0
@@ -119,16 +120,19 @@ class SnakeGame :
         # initialise food
         self._create_food()
 
-        # self._draw_square((self.grid_pixel, self.grid_pixel), COLOR.SNAKE.name, (10,0))
+        self._refresh_score()
 
     def run(self):
+        time = 0
         while not self._quit_event():
             # _ = pygame.time.Clock.tick(0)
             self.handle_keystroke()
-            if not self.step_snake():
-                break
-            
-            _ = self.clock.tick(FPS)
+            tick = self.clock.tick(FPS)
+            time += tick
+            if (time - MS_PER_FRAME) > -1e-3:
+                time = 0
+                if not self.step_snake():
+                    break
 
     def handle_keystroke (self) -> None:
         key_pressed = pygame.key.get_pressed() # user input dictionary
