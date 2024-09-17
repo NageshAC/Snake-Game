@@ -22,7 +22,8 @@ fps = 100
 speed = 10  # speed hz per movement
 grid_pixel = 10
 
-SPEED = 50 # speed => milisecond delay between frames
+FPS = 30 # speed => frames per second
+# SUB_FPS = 10
 
 top_offset = 25
 bottom_offset = 0
@@ -126,11 +127,8 @@ class SnakeGame :
             self.handle_keystroke()
             if not self.step_snake():
                 break
-            self._refresh_score()
-            pygame.display.flip()
-            # pygame.time.Clock.tick()
-            # print("Time:  ", pygame.time.Clock.get_time())
-            pygame.time.delay(SPEED)
+            
+            _ = self.clock.tick(FPS)
 
     def handle_keystroke (self) -> None:
         key_pressed = pygame.key.get_pressed() # user input dictionary
@@ -171,6 +169,9 @@ class SnakeGame :
 
     def step_snake (self) -> bool:
         # print("\n\nStepping...")
+
+        remove_tail = True
+        score_changed = False
         
         # Calculate new position of head
         new_pos = self.snake[0] + self.direction
@@ -188,15 +189,22 @@ class SnakeGame :
         # if food at new position of head create new food
         if self._is_food(new_pos):
             self.score += 1
+            score_changed = True
             self._create_food()
-
-        # else delete last square (tail)
-        else:
-            self._draw_square (self._std_sqr, COLOR.BG.name, self.snake.pop())
+            remove_tail = False
+            
 
         # add new position as head
-        self._draw_square (self._std_sqr, COLOR.SNAKE.name, new_pos)
         self.snake.appendleft(new_pos)
+        if score_changed:
+            self._refresh_score()
+
+        self._draw_square (self._std_sqr, COLOR.SNAKE.name, new_pos)
+        if remove_tail:
+            self._draw_square (self._std_sqr, COLOR.BG.name, self.snake.pop())
+        pygame.display.flip()
+
+
 
         return True
 
