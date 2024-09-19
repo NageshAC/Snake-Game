@@ -3,6 +3,7 @@ from enum import Enum
 import numpy as np
 import random
 from collections import deque
+from time import perf_counter_ns
 
 from pygame.locals import (
     K_UP,
@@ -18,18 +19,17 @@ from pygame.locals import (
 
 # Game Window Configuration
 grid_res = (80, 80)
-fps = 100
-speed = 10  # speed hz per movement
+# speed = 10  # speed hz per movement
 grid_pixel = 10
 
-FPS = 20 # speed => frames per second
-# SUB_FPS = 10
-MS_PER_FRAME = 1e-3 / FPS
+MPS = 10 # speed => movement per second -> FPS
+# SUB_MPS = 10
+# MS_PER_FRAME = 1e-3 / MPS
 
 top_offset = 25
-bottom_offset = 0
-left_offset = 0
-right_offset = 0
+bottom_offset = 25
+left_offset = 25
+right_offset = 25
 
 # Colors used in the game window
 class COLOR(Enum):
@@ -57,7 +57,7 @@ def get_pygame_loc (loc: tuple[int, int] | np.ndarray) -> tuple[int, int]:
 
 class SnakeGame :
 
-    def __init__(self, grid_res:tuple[int, int], grid_pixel:int) -> None:
+    def __init__(self, grid_res:tuple[int, int], grid_pixel:int, MPS:int) -> None:
         self.grid_pixel = grid_pixel
         self.win_res = get_pygame_loc((grid_res[0] * self.grid_pixel + top_offset + bottom_offset, 
                         grid_res[1] * self.grid_pixel + left_offset + right_offset))
@@ -66,12 +66,108 @@ class SnakeGame :
         self.grid_res = grid_res
         self._std_sqr = (self.grid_pixel, self.grid_pixel)
 
+        self.MPS = MPS
+
         #pygame setup
         pygame.init()
         self.screen = pygame.display.set_mode(self.win_res)
         pygame.display.set_caption('Snake')
         self.clock = pygame.time.Clock()
 
+        self.game_reset ()
+
+    def run(self):
+        time : int = perf_counter_ns()
+        NS_PER_FRAME : float = 1e+9 / MPS
+        while self.handle_keystroke() and not self._quit_event():
+            if ((perf_counter_ns() - time) - NS_PER_FRAME) > -1e3:
+                time = perf_counter_ns()    # Reset timer
+                self.clock.tick()
+                if not self.step_snake():
+                    break
+
+                print('time per frame: ', int((perf_counter_ns() - time) * 1e-3), ' micro s')
+                print('Frame Rate: ', self.clock.get_fps())
+
+    def handle_keystroke (self) -> bool:
+        key_pressed = pygame.key.get_pressed() # user input dictionary
+
+        if key_pressed [K_x]:
+            # print("\n\n------------Quiting------------\n\n from 'X' key\n\n")
+            return False
+        
+        if key_pressed [K_UP] or key_pressed [K_w]:
+            # print("\n====== Pressed K_UP ======\n")
+            # move UP if the direction in not DOWN
+            if not np.array_equal(self.direction, DIR['DOWN']):
+                self.direction = DIR['UP']
+                # print(self.direction, "\n")
+
+        if key_pressed [K_DOWN] or key_pressed [K_s]:
+            # print("\n====== Pressed K_DOWN ======\n")
+            # move DOWN if the direction in not UP
+            if not np.array_equal(self.direction, DIR['UP']):
+                self.direction = DIR['DOWN']
+                # print(self.direction, "\n")
+
+        if key_pressed [K_LEFT] or key_pressed [K_a]:
+            # print("\n====== Pressed K_LEFT ======\n")
+            # move LEFT if the direction in not RIGHT
+            if not np.array_equal(self.direction, DIR['RIGHT']):
+                self.direction = DIR['LEFT']
+                # print(self.direction, "\n")
+
+        if key_pressed [K_RIGHT] or key_pressed [K_d]:
+            # print("\n====== Pressed K_RIGHT ======\n")
+            # move RIGHT if the direction in not LEFT
+            if not np.array_equal(self.direction, DIR['LEFT']):
+                self.direction = DIR['RIGHT']
+                # print(self.direction, "\n")
+
+        return True
+
+    def step_snake (self) -> bool:
+        # print("\n\nStepping...")
+
+        remove_tail = True
+        score_changed = False
+        
+        # Calculate new position of head
+        new_pos = self.snake[0] + self.direction
+        # print(new_pos)
+
+        # if new position is wall or snake quit
+        if self._is_snake(new_pos):
+            # print("\n\nGame Over (Snake)\n\n------------Quiting------------\n\n")
+            return False
+        
+        if self._is_wall(new_pos):
+            # print("\n\nGame Over (Wall)\n\n------------Quiting------------\n\n")
+            return False
+            
+        # if food at new position of head create new food
+        if self._is_food(new_pos):
+            self.score += 1
+            score_changed = True
+            self._create_food()
+            remove_tail = False
+            
+
+        # add new position as head
+        self.snake.appendleft(new_pos)
+        if score_changed:
+            self._refresh_score()
+
+        self._draw_square (self._std_sqr, COLOR.SNAKE.name, new_pos)
+        if remove_tail:
+            self._draw_square (self._std_sqr, COLOR.BG.name, self.snake.pop())
+        pygame.display.flip()
+
+
+
+        return True
+
+    def game_reset (self) -> None:
         self.grid = np.zeros(self.grid_res, dtype=int)
         self.score: int = 0
         # self.font = pygame.font.Font('arial.ttf', top_offset)
@@ -114,103 +210,12 @@ class SnakeGame :
                         done = True
                         break
 
-        # print(choice_key)
-        # print(self.direction)
-
         # initialise food
         self._create_food()
 
         self._refresh_score()
 
-    def run(self):
-        time = 0
-        while not self._quit_event():
-            # _ = pygame.time.Clock.tick(0)
-            self.handle_keystroke()
-            tick = self.clock.tick(FPS)
-            time += tick
-            if (time - MS_PER_FRAME) > -1e-3:
-                time = 0
-                if not self.step_snake():
-                    break
-
-    def handle_keystroke (self) -> None:
-        key_pressed = pygame.key.get_pressed() # user input dictionary
-        # for event in pygame.event.get():
-        #     if event.type == KEYDOWN:
-
-        if key_pressed [K_x]:
-            # print("\n\n------------Quiting------------\n\n from 'X' key\n\n")
-            return False
-        
-        if key_pressed [K_UP] or key_pressed [K_w]:
-            # print("\n====== Pressed K_UP ======\n")
-            # move UP if the direction in not DOWN
-            if not np.array_equal(self.direction, DIR['DOWN']):
-                self.direction = DIR['UP']
-                # print(self.direction, "\n")
-
-        if key_pressed [K_DOWN] or key_pressed [K_s]:
-            # print("\n====== Pressed K_DOWN ======\n")
-            # move DOWN if the direction in not UP
-            if not np.array_equal(self.direction, DIR['UP']):
-                self.direction = DIR['DOWN']
-                # print(self.direction, "\n")
-
-        if key_pressed [K_LEFT] or key_pressed [K_a]:
-            # print("\n====== Pressed K_LEFT ======\n")
-            # move LEFT if the direction in not RIGHT
-            if not np.array_equal(self.direction, DIR['RIGHT']):
-                self.direction = DIR['LEFT']
-                # print(self.direction, "\n")
-
-        if key_pressed [K_RIGHT] or key_pressed [K_d]:
-            # print("\n====== Pressed K_RIGHT ======\n")
-            # move RIGHT if the direction in not LEFT
-            if not np.array_equal(self.direction, DIR['LEFT']):
-                self.direction = DIR['RIGHT']
-                # print(self.direction, "\n")
-
-    def step_snake (self) -> bool:
-        # print("\n\nStepping...")
-
-        remove_tail = True
-        score_changed = False
-        
-        # Calculate new position of head
-        new_pos = self.snake[0] + self.direction
-        # print(new_pos)
-
-        # if new position is wall or snake quit
-        if self._is_snake(new_pos):
-            # print("\n\nGame Over (Snake)\n\n------------Quiting------------\n\n")
-            return False
-        
-        if self._is_wall(new_pos):
-            # print("\n\nGame Over (Wall)\n\n------------Quiting------------\n\n")
-            return False
-            
-        # if food at new position of head create new food
-        if self._is_food(new_pos):
-            self.score += 1
-            score_changed = True
-            self._create_food()
-            remove_tail = False
-            
-
-        # add new position as head
-        self.snake.appendleft(new_pos)
-        if score_changed:
-            self._refresh_score()
-
-        self._draw_square (self._std_sqr, COLOR.SNAKE.name, new_pos)
-        if remove_tail:
-            self._draw_square (self._std_sqr, COLOR.BG.name, self.snake.pop())
         pygame.display.flip()
-
-
-
-        return True
 
     def _quit_event(self) -> bool:
         for event in pygame.event.get():
@@ -304,4 +309,4 @@ class SnakeGame :
         self.screen.blit(text, [0, 0])
 
 if __name__ == "__main__":
-    SnakeGame(grid_res, grid_pixel).run()
+    SnakeGame(grid_res, grid_pixel, MPS).run()
