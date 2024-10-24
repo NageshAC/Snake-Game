@@ -21,7 +21,7 @@ from pygame.locals import (
 grid_res = (80, 80)
 # speed = 10  # speed hz per movement
 grid_pixel = 10
-SNAKE_SIZE = 3
+SNAKE_SIZE = 5
 
 MPS = 10 # speed => movement per second -> FPS
 # SUB_MPS = 10
@@ -49,9 +49,10 @@ class SYMBOL(Enum):
 # class DIR(Enum):
 DIR = dict()
 DIR['UP']    = np.array([-1,  0])
+DIR['RIGHT'] = np.array([ 0,  1])
 DIR['DOWN']  = np.array([ 1,  0])
 DIR['LEFT']  = np.array([ 0, -1])
-DIR['RIGHT'] = np.array([ 0,  1])
+
 
 def get_pygame_loc (loc: tuple[int, int] | np.ndarray) -> tuple[int, int]:
     return (loc[1], loc[0])

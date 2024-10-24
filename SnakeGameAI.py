@@ -1,6 +1,5 @@
 import torch
 import random
-import matplotlib.pyplot as plt
 from SnakeGame import SnakeGame, DIR
 from collections import deque
 import numpy as np
@@ -18,16 +17,16 @@ MAX_MEMORY : int = 1_000
 BATCH_SIZE : int = 100
 RATE_RANDOM_CHOICES : int = 100
 
-LR = 0.01      # Learning Rate
+LR = 0.001      # Learning Rate
 GAMMA = 0.9     # discount rate for deep Q Learning
 
 
 
-CHOICE = dict()
-CHOICE[0] = [2, 3]
-CHOICE[1] = [2, 3]
-CHOICE[2] = [0, 1]
-CHOICE[3] = [0, 1]
+# CHOICE = dict()
+# CHOICE[0] = [2, 3]
+# CHOICE[1] = [2, 3]
+# CHOICE[2] = [0, 1]
+# CHOICE[3] = [0, 1]
 
 class SnakeGameAI (SnakeGame):
 
@@ -41,11 +40,15 @@ class SnakeGameAI (SnakeGame):
 
         self.model = model
         self.trainer = trainer
+
+        self.dir_key_list = list(DIR.keys())
         
         for key, val in DIR.items():
             if np.array_equal(self.direction, val):
                 act = key
-        self.action : int = list(DIR.keys()).index(act)
+        self.action_dir : int = self.dir_key_list.index(act)
+
+        self.action_rotataion = 1
 
     def get_state(self, game_over):
 
@@ -54,7 +57,7 @@ class SnakeGameAI (SnakeGame):
         # * Movement Direction       (2 values) [verticle and Horizontal components]
         # * Food Direction           (2 values) [verticle and Horizontal components]
 
-
+        
         danger      = np.zeros((4,), dtype=int)
         food        = np.zeros((4,), dtype=int)
         direction   = np.zeros((4,), dtype=int)
@@ -63,9 +66,9 @@ class SnakeGameAI (SnakeGame):
         # Calculate food state and distance
         distance = self.food - self.snake[0]
         food[0] = distance[0] < 0 # UP
-        food[1] = distance[0] > 0 # DOWN
-        food[2] = distance[1] < 0 # LEFT
-        food[3] = distance[1] > 0 # RIGHT
+        food[1] = distance[1] > 0 # RIGHT
+        food[2] = distance[0] > 0 # DOWN
+        food[3] = distance[1] < 0 # LEFT
         distance = (np.sqrt(np.sum(distance**2)))
         
 
@@ -91,20 +94,23 @@ class SnakeGameAI (SnakeGame):
         # Eploration using randon movement direction
         self.eps = max(RATE_RANDOM_CHOICES - self.n_games, 5)
         if random.randint(0, RATE_RANDOM_CHOICES) < self.eps:
-            # print('Action: ', self.action)
-            # print('Action Choice: ', CHOICE[self.action])
-            act = random.choice(CHOICE[self.action])
-            # print('Chosen Action: ', act)
-            # print("Random Move")
+            # act = random.choice(CHOICE[self.action])
+            self.action_rotataion = random.randint(0, 2)
 
         else:
-            act = torch.argmax(self.model(torch.tensor(state, dtype=torch.float))).item()
+            pred = self.model(torch.tensor(state, dtype=torch.float))
+            self.action_rotataion = torch.argmax(pred).item()
 
-        if act in CHOICE[self.action]:
-            self.direction = DIR[list(DIR.keys())[act]]
-            self.action = act
+        # if act in CHOICE[self.action]:
+        #     self.direction = DIR[self.dir_key_list[act]]
+        #     self.action = act
+        
+        self.action_dir = (self.action_dir + self.action_rotataion - 1) % len(self.dir_key_list)
+        self.direction = DIR[self.dir_key_list[self.action_dir]]
+        action = [0, 0, 0]
 
-        return self.action
+        action[self.action_rotataion] = 1
+        return action
 
     def remember_state(self, state_old, action, reward, state_new, game_over) -> None:
         self.memory.append((state_old, action, reward, state_new, game_over))
@@ -129,7 +135,7 @@ def train() -> None:
     # # Run on GPU if available
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # print(device)
-    model = Linear_QNet(13, 128, 4)
+    model = Linear_QNet(13, 128, 3)
     ai_game  = SnakeGameAI(model, QTrainer(model, lr=LR, gamma=GAMMA))
     
     plot_scores, plot_mean_scores = ai_game.model.load()
@@ -171,11 +177,11 @@ def train() -> None:
                 reward = 10
                 old_distance = GRID_RES[0]
             else:
-                reward = 1 if (old_distance - new_distance) >= 0 \
-                         else -1
-                old_distance = new_distance
-                # reward = 0
-            reward *= -1
+                # reward = 1 if (old_distance - new_distance) >= 0 \
+                #          else -1
+                # old_distance = new_distance
+                reward = 0
+            # reward *= -1
             # train short memory
             ai_game.train_short_memory(state_old, action, reward, state_new, game_over)
 
