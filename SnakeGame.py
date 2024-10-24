@@ -21,15 +21,16 @@ from pygame.locals import (
 grid_res = (80, 80)
 # speed = 10  # speed hz per movement
 grid_pixel = 10
+SNAKE_SIZE = 3
 
 MPS = 10 # speed => movement per second -> FPS
 # SUB_MPS = 10
 # MS_PER_FRAME = 1e-3 / MPS
 
-top_offset = 25
-bottom_offset = 25
-left_offset = 25
-right_offset = 25
+top_offset      = 25
+bottom_offset   = 0
+left_offset     = 0
+right_offset    = 0
 
 # Colors used in the game window
 class COLOR(Enum):
@@ -57,28 +58,33 @@ def get_pygame_loc (loc: tuple[int, int] | np.ndarray) -> tuple[int, int]:
 
 class SnakeGame :
 
-    def __init__(self, grid_res:tuple[int, int], grid_pixel:int, MPS:int) -> None:
+    def __init__(self, grid_res:tuple[int, int], grid_pixel:int, MPS:int, game_name = 'Snake Game') -> None:
         self.grid_pixel = grid_pixel
-        self.win_res = get_pygame_loc((grid_res[0] * self.grid_pixel + top_offset + bottom_offset, 
-                        grid_res[1] * self.grid_pixel + left_offset + right_offset))
-        self.play_area = get_pygame_loc((grid_res[0] * self.grid_pixel, 
-                          grid_res[1] * self.grid_pixel))
         self.grid_res = grid_res
+        self.MPS = MPS
+
+        self.win_res = get_pygame_loc((self.grid_res[0] * self.grid_pixel + top_offset + bottom_offset, 
+                        self.grid_res[1] * self.grid_pixel + left_offset + right_offset))
+        
+        self.play_area = get_pygame_loc((self.grid_res[0] * self.grid_pixel, 
+                          self.grid_res[1] * self.grid_pixel))
+        
+        # unit cell of snake in the game
         self._std_sqr = (self.grid_pixel, self.grid_pixel)
 
-        self.MPS = MPS
 
         #pygame setup
         pygame.init()
         self.screen = pygame.display.set_mode(self.win_res)
-        pygame.display.set_caption('Snake')
+        pygame.display.set_caption(game_name)
         self.clock = pygame.time.Clock()
 
         self.game_reset ()
 
-    def run(self):
+    def run_game(self):
         time : int = perf_counter_ns()
-        NS_PER_FRAME : float = 1e+9 / MPS
+        NS_PER_FRAME : float = 1e+9 / MPS # nano second per frame 
+
         while self.handle_keystroke() and not self._quit_event():
             if ((perf_counter_ns() - time) - NS_PER_FRAME) > -1e3:
                 time = perf_counter_ns()    # Reset timer
@@ -88,8 +94,11 @@ class SnakeGame :
 
                 print('time per frame: ', int((perf_counter_ns() - time) * 1e-3), ' micro s')
                 print('Frame Rate: ', self.clock.get_fps())
+        pygame.quit()
 
     def handle_keystroke (self) -> bool:
+        # * Updates direction depending on the user input
+         
         key_pressed = pygame.key.get_pressed() # user input dictionary
 
         if key_pressed [K_x]:
@@ -130,7 +139,7 @@ class SnakeGame :
         # print("\n\nStepping...")
 
         remove_tail = True
-        score_changed = False
+        # score_changed = False
         
         # Calculate new position of head
         new_pos = self.snake[0] + self.direction
@@ -148,22 +157,23 @@ class SnakeGame :
         # if food at new position of head create new food
         if self._is_food(new_pos):
             self.score += 1
-            score_changed = True
+            # score_changed = True
             self._create_food()
             remove_tail = False
             
 
         # add new position as head
         self.snake.appendleft(new_pos)
-        if score_changed:
-            self._refresh_score()
+        # if score_changed:
+            # self._refresh_score()
 
         self._draw_square (self._std_sqr, COLOR.SNAKE.name, new_pos)
         if remove_tail:
             self._draw_square (self._std_sqr, COLOR.BG.name, self.snake.pop())
+        else:
+            self._refresh_score()
+        
         pygame.display.flip()
-
-
 
         return True
 
@@ -181,7 +191,7 @@ class SnakeGame :
 
         self._draw_square (self.play_area, COLOR.WALL.name, (0, 0), False)
         self._draw_square (
-            (self.play_area[0]-2*self.grid_pixel, self.play_area[0]-2*self.grid_pixel), 
+            (self.play_area[0]-2*self.grid_pixel, self.play_area[1]-2*self.grid_pixel), 
             COLOR.BG.name, 
             (1, 1),
             False)
@@ -215,7 +225,7 @@ class SnakeGame :
 
         self._refresh_score()
 
-        pygame.display.flip()
+        pygame.display.flip() # initial frame
 
     def _quit_event(self) -> bool:
         for event in pygame.event.get():
@@ -254,7 +264,8 @@ class SnakeGame :
     def _is_food (self, coord : tuple[int, int]) -> bool:
         if type(coord) == np.ndarray:
             coord = tuple(coord)
-        return True if self.grid[coord] == SYMBOL.FOOD.value else False
+        self.is_food = True if self.grid[coord] == SYMBOL.FOOD.value else False
+        return self.is_food
     
     def _create_snake (self) -> None:
         snake_head = np.array([
@@ -273,7 +284,7 @@ class SnakeGame :
 
         # print("Snake Choice: ", choice_key)
 
-        for _ in range(3):
+        for _ in range(SNAKE_SIZE-1):
             while True:
                 new_pos = self.snake[-1] + dir_choice
                 if not self._is_snake(new_pos):
@@ -309,4 +320,4 @@ class SnakeGame :
         self.screen.blit(text, [0, 0])
 
 if __name__ == "__main__":
-    SnakeGame(grid_res, grid_pixel, MPS).run()
+    SnakeGame(grid_res, grid_pixel, MPS).run_game()
